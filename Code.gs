@@ -4,6 +4,12 @@ function getHomeValue() {
   console.log(match[1]);
 }
 
+function testParseCronField() {
+  Logger.log(PARSE_CRON_FIELD("1-5", 1, 5));  // Should log [1, 2, 3, 4, 5]
+  Logger.log(PARSE_CRON_FIELD("3-/2", 1, 10));  // Should log [3, 5, 7, 9]
+  Logger.log(PARSE_CRON_FIELD("1,2,5", 1, 5));  // Should log [1, 2, 5]
+}
+
 /**
  * Parses a cron field to an array of numerical values.
  * @param {string} field - The cron field.
@@ -11,7 +17,7 @@ function getHomeValue() {
  * @param {number} max - The maximum value for the field.
  * @returns {number[]} - Array of valid numerical values for the field.
  */
-function parseCronField(field, min, max) {
+function PARSE_CRON_FIELD(field, min, max) {
   let result = new Set();
 
   // Handle wildcard (*)
@@ -23,18 +29,22 @@ function parseCronField(field, min, max) {
   // Handle lists and ranges (1,3,5 or 1-5)
   let parts = field.split(',');
   for (let part of parts) {
+    
     if (part.indexOf('/') > -1) {
       // Handle ranges with steps (1-15/2)
       let [range, step] = part.split('/');
       step = parseInt(step, 10);
 
-      if (range.indexOf('-') > -1) {
+      if (range === '*') {
+        for (let i = min; i <= max; i += step) result.add(i);
+      } else if (range.indexOf('-') > -1) {
         // Range with step
-        let [start, end] = range.split('-').map(Number);
-        end = isNaN(end) ? max : end; // If end is omitted, assume max
+        let [start, end] = range.split('-');
+        start = start === '' ? min : Number(start); // Ensure start is defined
+        end = end === '' ? max : Number(end); // If end is omitted, assume max
         for (let i = start; i <= end; i += step) result.add(i);
       } else {
-        // Interval with step (*/2)
+        // Interval with step (e.g. 5/2)
         let start = parseInt(range, 10);
         for (let i = start; i <= max; i += step) result.add(i);
       }
@@ -42,6 +52,7 @@ function parseCronField(field, min, max) {
       // Range without steps (1-5)
       let [start, end] = part.split('-').map(Number);
       end = isNaN(end) ? max : end; // If end is omitted, assume max
+      start = isNaN(start) ? min : start; // Ensure start is defined
       for (let i = start; i <= end; i++) result.add(i);
     } else {
       // Individual value
@@ -71,8 +82,8 @@ function matchesCronCriteria(date, daysOfMonth, months, daysOfWeek, daysSinceEpo
   if (!daysOfWeek.includes(dayOfWeek)) return false;
 
   if (daysSinceEpoch.length > 0) {
-    const epochRange = SpreadsheetApp.getActive().getNamedRanges().find(r => r.getName() === 'Epoch');
-    if (!epochRange) throw 'Could not find named range "Epoch"!';
+    const epochRange = SpreadsheetApp.getActive().getNamedRanges().find(r => r.getName() === 'EpochZero');
+    if (!epochRange) throw 'Could not find named range "EpochZero"!';
     const epoch = epochRange.getRange().getValue();
     const daysSinceEpochValue = Math.floor((date - epoch) / (1000 * 60 * 60 * 24));
     if (!daysSinceEpoch.includes(daysSinceEpochValue)) return false;
@@ -105,12 +116,12 @@ function CRON_NEXT_DATE(cronExpression, referenceDate) {
   const [dayOfMonthField, monthField, dayOfWeekField, daysSinceEpochField] = cronExpression.split(' ');
 
   // Parse each field
-  const daysOfMonth = parseCronField(dayOfMonthField, ranges.dayOfMonth.min, ranges.dayOfMonth.max);
-  const months = parseCronField(monthField, ranges.month.min, ranges.month.max);
-  const daysOfWeek = parseCronField(dayOfWeekField, ranges.dayOfWeek.min, ranges.dayOfWeek.max);
+  const daysOfMonth = PARSE_CRON_FIELD(dayOfMonthField, ranges.dayOfMonth.min, ranges.dayOfMonth.max);
+  const months = PARSE_CRON_FIELD(monthField, ranges.month.min, ranges.month.max);
+  const daysOfWeek = PARSE_CRON_FIELD(dayOfWeekField, ranges.dayOfWeek.min, ranges.dayOfWeek.max);
 
   // Prepare daysSinceEpoch array if not a wildcard
-  const daysSinceEpoch = daysSinceEpochField !== '*' ? parseCronField(daysSinceEpochField, 0, 365*500) : [];
+  const daysSinceEpoch = daysSinceEpochField !== '*' ? PARSE_CRON_FIELD(daysSinceEpochField, 0, 365*10) : [];
 
   // Search for the next valid date within one year
   let nextDate = new Date(now);
@@ -148,12 +159,12 @@ function CRON_LAST_DATE(cronExpression, referenceDate) {
   const [dayOfMonthField, monthField, dayOfWeekField, daysSinceEpochField] = cronExpression.split(' ');
 
   // Parse each field
-  const daysOfMonth = parseCronField(dayOfMonthField, ranges.dayOfMonth.min, ranges.dayOfMonth.max);
-  const months = parseCronField(monthField, ranges.month.min, ranges.month.max);
-  const daysOfWeek = parseCronField(dayOfWeekField, ranges.dayOfWeek.min, ranges.dayOfWeek.max);
+  const daysOfMonth = PARSE_CRON_FIELD(dayOfMonthField, ranges.dayOfMonth.min, ranges.dayOfMonth.max);
+  const months = PARSE_CRON_FIELD(monthField, ranges.month.min, ranges.month.max);
+  const daysOfWeek = PARSE_CRON_FIELD(dayOfWeekField, ranges.dayOfWeek.min, ranges.dayOfWeek.max);
 
   // Prepare daysSinceEpoch array if not a wildcard
-  const daysSinceEpoch = daysSinceEpochField !== '*' ? parseCronField(daysSinceEpochField, 0, 365*500) : [];
+  const daysSinceEpoch = daysSinceEpochField !== '*' ? PARSE_CRON_FIELD(daysSinceEpochField, 0, 365*500) : [];
 
   // Search for the last valid date
   let lastDate = new Date(now);
@@ -175,7 +186,7 @@ function CRON_LAST_DATE(cronExpression, referenceDate) {
  * @param {string} endDate - The end date in ISO format (yyyy-mm-dd).
  * @returns {number} - The count of dates between startDate and endDate that match the cron expression.
  */
-function CRON_DATES_BETWEEN(cronExpression, startDate, endDate) {
+function CRON_COUNT(cronExpression, startDate, endDate) {
   // Parse start and end dates
   let start = new Date(startDate);
   let end = new Date(endDate);
@@ -191,17 +202,17 @@ function CRON_DATES_BETWEEN(cronExpression, startDate, endDate) {
   const [dayOfMonthField, monthField, dayOfWeekField, daysSinceEpochField] = cronExpression.split(' ');
 
   // Parse each field
-  const daysOfMonth = parseCronField(dayOfMonthField, ranges.dayOfMonth.min, ranges.dayOfMonth.max);
-  const months = parseCronField(monthField, ranges.month.min, ranges.month.max);
-  const daysOfWeek = parseCronField(dayOfWeekField, ranges.dayOfWeek.min, ranges.dayOfWeek.max);
+  const daysOfMonth = PARSE_CRON_FIELD(dayOfMonthField, ranges.dayOfMonth.min, ranges.dayOfMonth.max);
+  const months = PARSE_CRON_FIELD(monthField, ranges.month.min, ranges.month.max);
+  const daysOfWeek = PARSE_CRON_FIELD(dayOfWeekField, ranges.dayOfWeek.min, ranges.dayOfWeek.max);
 
   // Prepare daysSinceEpoch array if not a wildcard
-  const daysSinceEpoch = daysSinceEpochField !== '*' ? parseCronField(daysSinceEpochField, 0, 365*500) : [];
+  const daysSinceEpoch = daysSinceEpochField !== '*' ? PARSE_CRON_FIELD(daysSinceEpochField, 0, 365*500) : [];
 
   let count = 0;
 
   // Iterate through each date between startDate and endDate
-  let currentDate = new Date(start);
+  let currentDate = start;
   while (currentDate < end) {
     if (matchesCronCriteria(currentDate, daysOfMonth, months, daysOfWeek, daysSinceEpoch)) {
       count++;
