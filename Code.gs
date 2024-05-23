@@ -187,37 +187,42 @@ function CRON_LAST_DATE(cronExpression, referenceDate) {
  * @returns {number} - The count of dates between startDate and endDate that match the cron expression.
  */
 function CRON_COUNT(cronExpression, startDate, endDate) {
-  // Parse start and end dates
   let start = new Date(startDate);
   let end = new Date(endDate);
 
-  // Define the ranges for cron fields
   const ranges = {
     dayOfMonth: { min: 1, max: 31 },
     month: { min: 1, max: 12 },
     dayOfWeek: { min: 0, max: 6 }
   };
 
-  // Split the cron expression into fields
   const [dayOfMonthField, monthField, dayOfWeekField, daysSinceEpochField] = cronExpression.split(' ');
 
-  // Parse each field
   const daysOfMonth = PARSE_CRON_FIELD(dayOfMonthField, ranges.dayOfMonth.min, ranges.dayOfMonth.max);
   const months = PARSE_CRON_FIELD(monthField, ranges.month.min, ranges.month.max);
   const daysOfWeek = PARSE_CRON_FIELD(dayOfWeekField, ranges.dayOfWeek.min, ranges.dayOfWeek.max);
-
-  // Prepare daysSinceEpoch array if not a wildcard
   const daysSinceEpoch = daysSinceEpochField !== '*' ? PARSE_CRON_FIELD(daysSinceEpochField, 0, 365*500) : [];
 
   let count = 0;
 
-  // Iterate through each date between startDate and endDate
-  let currentDate = start;
-  while (currentDate < end) {
-    if (matchesCronCriteria(currentDate, daysOfMonth, months, daysOfWeek, daysSinceEpoch)) {
+  // Create a helper to quickly check if a given day/month combination matches the cron criteria.
+  function matchesCronCriteria(date) {
+    const day = date.getDate();
+    const month = date.getMonth() + 1; // JavaScript months are 0-based
+    const dayOfWeek = date.getDay();
+    const daysSinceEpochCount = Math.floor((date - new Date(0)) / (1000 * 60 * 60 * 24));
+
+    return (daysOfMonth.includes(day) || dayOfMonthField === '*') &&
+           (months.includes(month) || monthField === '*') &&
+           (daysOfWeek.includes(dayOfWeek) || dayOfWeekField === '*') &&
+           (daysSinceEpoch.length === 0 || daysSinceEpoch.includes(daysSinceEpochCount));
+  }
+
+  // Iterate through each date within the range, checking only the dates within our parsed ranges
+  for (let currentDate = start; currentDate < end; currentDate.setDate(currentDate.getDate() + 1)) {
+    if (matchesCronCriteria(currentDate)) {
       count++;
     }
-    currentDate.setDate(currentDate.getDate() + 1); // Move to the next day
   }
 
   return count;
