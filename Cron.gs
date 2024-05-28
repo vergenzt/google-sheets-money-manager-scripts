@@ -1,8 +1,3 @@
-function getHomeValue() {
-  let contents = UrlFetchApp.fetch("https://www.zillow.com/homes/4580-Bannons-Walk-Ct_rb/44576637_zpid/").getContentText();
-  let match = /\bprice.{1,3}\b(\d{6})\b/.exec(contents);
-  console.log(match[1]);
-}
 
 function testParseCronField() {
   Logger.log(PARSE_CRON_FIELD("1-5", 1, 5));  // Should log [1, 2, 3, 4, 5]
