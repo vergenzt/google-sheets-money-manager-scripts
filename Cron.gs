@@ -1,4 +1,3 @@
-
 function testParseCronField() {
   Logger.log(PARSE_CRON_FIELD("1-5", 1, 5));  // Should log [1, 2, 3, 4, 5]
   Logger.log(PARSE_CRON_FIELD("3-/2", 1, 10));  // Should log [3, 5, 7, 9]
